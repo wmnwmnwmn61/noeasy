@@ -1,52 +1,110 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-
+<html lang="zh">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>夸赞张益萌</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-    }
-
- .card {
-      background-color: #fff;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      border-radius: 10px;
-      padding: 40px;
-      text-align: center;
-    }
-
-    h1 {
-      color: #333;
-      font-size: 36px;
-      margin-bottom: 20px;
-    }
-
-    p {
-      color: #666;
-      font-size: 20px;
-      line-height: 1.6;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>谁最可爱？</title>
+    <style>
+        body {
+            background-color: pink;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            text-align: center;
+        }
+        .title {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .choice {
+            padding: 15px 30px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+        #yimeng {
+            background-color: #4169E1;
+            color: white;
+        }
+        #pighead {
+            background-color: #FF4444;
+            color: white;
+        }
+        .success {
+            display: none;
+            color: green;
+            font-size: 24px;
+            margin-top: 20px;
+        }
+    </style>
 </head>
-
 <body>
-  <div class="card">
-    <h1>张益萌，你太棒啦！</h1>
-    <p>张益萌，你的笑容如同春日暖阳，温暖又灿烂，每次看到都能让人心情瞬间变好。</p>
-    <p>你拥有着无比聪慧的头脑，总能快速地理解各种复杂的事物，思维敏捷得让人钦佩不已。</p>
-    <p>而且你的善良就像一颗闪闪发光的宝石，时刻散发着迷人的光芒，总是无私地帮助身边的每一个人。</p>
-    <p>无论是面对挑战还是困难，你都展现出了惊人的勇气和毅力，这种精神激励着我们每一个人。</p>
-    <p>张益萌，你就是独一无二的存在，是这个世界上最最可爱又优秀的人！</p>
-  </div>
-</body>
+    <div class="container">
+        <h1 class="title">请选择最可爱的一个：</h1>
+        <div>
+            <button id="yimeng" class="choice">张益萌</button>
+            <button id="pighead" class="choice">小猪头</button>
+        </div>
+        <p id="success" class="success">恭喜你选对啦！小猪头最可爱！🐷</p>
+    </div>
 
+    <script>
+        let size = 18;
+        const yimeng = document.getElementById('yimeng');
+        const pighead = document.getElementById('pighead');
+        const success = document.getElementById('success');
+
+        yimeng.addEventListener('mouseover', function() {
+            size += 2;
+            pighead.style.fontSize = size + 'px';
+            yimeng.style.cursor = 'not-allowed';
+        });
+
+        yimeng.addEventListener('click', function(e) {
+            e.preventDefault();
+            alert('不能选这个哦！');
+        });
+
+        pighead.addEventListener('click', function() {
+            success.style.display = 'block';
+            pighead.style.backgroundColor = '#32CD32';
+            confetti();
+        });
+
+        // 添加五彩纸屑效果
+        function confetti() {
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.style.position = 'fixed';
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = -20 + 'px';
+                confetti.style.width = '10px';
+                confetti.style.height = '10px';
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                confetti.style.borderRadius = '50%';
+                confetti.style.animation = 'fall 1s linear forwards';
+                document.body.appendChild(confetti);
+            }
+        }
+
+        // 添加动画
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fall {
+                to {
+                    transform: translateY(100vh);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
 </html>
