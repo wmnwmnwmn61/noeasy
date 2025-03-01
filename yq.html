@@ -2,43 +2,196 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>ECharts 示例</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <title>今日穿搭推荐</title>
     <style>
-        #main {
-            width: 800px;
-            height: 400px;
-            margin: 50px auto;
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        .title {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .weather-input {
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #f8f9fa;
+            display: none;
+        }
+        .outfit-image {
+            width: 200px;
+            height: 200px;
+            margin: 20px auto;
+            border-radius: 10px;
+            background-size: cover;
+            background-position: center;
+        }
+        .color-preview {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin: 10px auto;
+            border: 2px solid #ddd;
         }
     </style>
 </head>
 <body>
-    <div id="main"></div>
-    
+    <div class="container">
+        <h1 class="title">👔 今日穿搭推荐 🎨</h1>
+        
+        <div class="weather-input">
+            <h3>今天的天气如何？</h3>
+            <button onclick="setWeather('sunny')">☀️ 晴天</button>
+            <button onclick="setWeather('cloudy')">☁️ 阴天</button>
+            <button onclick="setWeather('rainy')">🌧️ 下雨</button>
+        </div>
+
+        <div id="result" class="result">
+            <h2>今日穿搭推荐</h2>
+            <div id="colorPreview" class="color-preview"></div>
+            <p id="colorName">推荐颜色：</p>
+            <p id="clothingType">推荐服装：</p>
+            <p id="tips">搭配建议：</p>
+        </div>
+    </div>
+
     <script>
-        import * as echarts from 'echarts';
-
-        var chartDom = document.getElementById('main');
-        var myChart = echarts.init(chartDom);
-        var option;
-
-        option = {
-            xAxis: {
-                type: 'category',
-                data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        const outfitRecommendations = {
+            sunny: {
+                colors: [
+                    {name: '明亮黄色', code: '#FFD700'},
+                    {name: '天空蓝', code: '#87CEEB'},
+                    {name: '清新白色', code: '#FFFFFF'},
+                    {name: '粉红色', code: '#FFB6C1'},
+                    {name: '薄荷绿', code: '#98FF98'}
+                ],
+                clothes: [
+                    'T恤',
+                    '短袖衬衫',
+                    '连衣裙',
+                    '短裤',
+                    '棒球帽'
+                ],
+                tips: [
+                    '搭配墨镜会很时尚哦',
+                    '建议带上遮阳帽',
+                    '可以选择轻薄面料的衣物',
+                    '适合明亮活力的搭配'
+                ]
             },
-            yAxis: {
-                type: 'value'
+            cloudy: {
+                colors: [
+                    {name: '灰蓝色', code: '#778899'},
+                    {name: '米色', code: '#F5F5DC'},
+                    {name: '淡紫色', code: '#E6E6FA'},
+                    {name: '深蓝色', code: '#4169E1'},
+                    {name: '暖灰色', code: '#808080'}
+                ],
+                clothes: [
+                    '长袖T恤',
+                    '牛仔外套',
+                    '休闲裤',
+                    '卫衣',
+                    '长裙'
+                ],
+                tips: [
+                    '建议准备一件外套',
+                    '可以尝试层次感搭配',
+                    '选择舒适日常的款式',
+                    '适合柔和温暖的搭配'
+                ]
             },
-            series: [
-                {
-                    data: [120, 200, 150, 80, 70, 110, 130],
-                    type: 'bar'
-                }
-            ]
+            rainy: {
+                colors: [
+                    {name: '深蓝色', code: '#000080'},
+                    {name: '深灰色', code: '#696969'},
+                    {name: '藏青色', code: '#000033'},
+                    {name: '军绿色', code: '#556B2F'},
+                    {name: '酒红色', code: '#8B0000'}
+                ],
+                clothes: [
+                    '防水外套',
+                    '长裤',
+                    '雨靴',
+                    '连帽衫',
+                    '风衣'
+                ],
+                tips: [
+                    '记得带伞哦',
+                    '选择防水材质的鞋子',
+                    '建议深色系搭配',
+                    '注意保暖防潮'
+                ]
+            }
         };
 
-        option && myChart.setOption(option);
+        function setWeather(weather) {
+            const result = document.getElementById('result');
+            const colorPreview = document.getElementById('colorPreview');
+            const colorName = document.getElementById('colorName');
+            const clothingType = document.getElementById('clothingType');
+            const tips = document.getElementById('tips');
+
+            // 随机选择推荐
+            const recommendation = outfitRecommendations[weather];
+            const color = recommendation.colors[Math.floor(Math.random() * recommendation.colors.length)];
+            const clothing = recommendation.clothes[Math.floor(Math.random() * recommendation.clothes.length)];
+            const tip = recommendation.tips[Math.floor(Math.random() * recommendation.tips.length)];
+
+            // 显示推荐结果
+            colorPreview.style.backgroundColor = color.code;
+            colorName.textContent = `推荐颜色：${color.name}`;
+            clothingType.textContent = `推荐服装：${clothing}`;
+            tips.textContent = `搭配建议：${tip}`;
+
+            // 显示结果区域
+            result.style.display = 'block';
+
+            // 添加动画效果
+            result.style.animation = 'fadeIn 0.5s';
+        }
+
+        // 添加动画样式
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
