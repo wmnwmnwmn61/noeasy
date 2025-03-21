@@ -1,64 +1,120 @@
 <!DOCTYPE html>
-<html lang="zh - CN">
+<html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>开业大酬宾</title>
+    <title>小龙人</title>
     <style>
-       .promotion {
+        body {
+            font-family: 微软雅黑, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+       .小龙人 {
+            position: relative;
+            width: 200px;
+            height: 300px;
             text-align: center;
-            font-size: 20px;
         }
 
-       .title {
-            font-family: SimHei;
-            font-weight: bold;
-            font-size: 36px;
+       .头 {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 80px;
+            background-color: #FFD700;
+            border-radius: 50%;
+            border: 2px solid #000;
         }
 
-        /* 定义通用的闪烁动画 */
-       .flicker {
-            animation: flicker 1s linear infinite;
+       .犄角 {
+            position: absolute;
+            width: 20px;
+            height: 30px;
+            background-color: #996633;
+            border: 2px solid #000;
+            border-bottom-left-radius: 50%;
+            border-bottom-right-radius: 50%;
         }
 
-        @keyframes flicker {
-            0% {
-                color: red;
-            }
+       .左犄角 {
+            top: 15px;
+            left: 10px;
+            transform: rotate(-30deg);
+        }
 
-            25% {
-                color: blue;
-            }
+       .右犄角 {
+            top: 15px;
+            right: 10px;
+            transform: rotate(30deg);
+        }
 
-            50% {
-                color: green;
-            }
+       .胳膊 {
+            position: absolute;
+            width: 60px;
+            height: 20px;
+            background-color: #FFD700;
+            border: 2px solid #000;
+            border-radius: 10px;
+        }
 
-            75% {
-                color: yellow;
-            }
+       .左胳膊 {
+            top: 100px;
+            left: 10px;
+            transform: rotate(-45deg);
+        }
 
-            100% {
-                color: purple;
-            }
+       .右胳膊 {
+            top: 100px;
+            right: 10px;
+            transform: rotate(45deg);
+        }
+
+       .身体 {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 120px;
+            background-color: #FFD700;
+            border: 2px solid #000;
+            border-radius: 20px;
+        }
+
+       .尾巴 {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 20px;
+            background-color: #FFD700;
+            border: 2px solid #000;
+            border-radius: 50px 50px 0 0;
+            transform: rotate(45deg);
         }
     </style>
 </head>
 
 <body>
-    <div class="promotion">
-        <p class="title">开业大酬宾</p>
-        <p><span class="flicker">亲爱的顾客朋友们，</span></p>
-        <p><span class="flicker">我们怀着无比激动的心情宣布，本店正式开业啦！</span></p>
-        <p><span class="flicker">为了感谢大家的支持与厚爱，特推出以下超值优惠活动：</span></p>
-        <p><span class="flicker">活动一：全场商品</span><span class="flicker"><strong>8折</strong></span><span class="flicker">优惠，让您用实惠的价格带走心仪的商品。</span></p>
-        <p><span class="flicker">活动二：消费满</span><span class="flicker"><strong>200元</strong></span><span class="flicker">，即可参与幸运抽奖，丰厚奖品等您来拿！</span></p>
-        <p><span class="flicker">活动三：开业当天，前</span><span class="flicker"><strong>50名</strong></span><span class="flicker">进店顾客可获得精美礼品一份。</span></p>
-        <p><span class="flicker">我们拥有丰富的商品种类，专业的服务团队，只为给您带来最优质的购物体验。</span></p>
-        <p><span class="flicker">快来加入我们的开业狂欢，一起享受这场购物盛宴吧！</span></p>
-        <p><span class="flicker">活动时间：[具体活动时间区间]</span></p>
-        <p><span class="flicker">店铺地址：[详细店铺地址]</span></p>
+    <div class="小龙人">
+        <div class="头">
+            <div class="左犄角"></div>
+            <div class="右犄角"></div>
+        </div>
+        <div class "左胳膊"></div>
+        <div class="右胳膊"></div>
+        <div class="身体"></div>
+        <div class="尾巴"></div>
     </div>
 </body>
 
