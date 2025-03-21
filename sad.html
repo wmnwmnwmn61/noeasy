@@ -10,21 +10,45 @@
             text-align: center;
             font-size: 20px;
         }
+
        .title {
             color: blue;
             font-size: 24px;
         }
+
        .italic {
             font-style: italic;
         }
+
        .bold {
             font-weight: bold;
         }
+
        .yellow {
             color: yellow;
         }
+
        .underline {
             text-decoration: underline;
+        }
+
+       .blink {
+            /* 定义闪烁动画 */
+            animation: blink 1s linear infinite;
+        }
+
+        @keyframes blink {
+            0% {
+                color: red;
+            }
+
+            50% {
+                color: transparent;
+            }
+
+            100% {
+                color: red;
+            }
         }
     </style>
 </head>
@@ -33,9 +57,9 @@
     <div class="poetry">
         <p class="title"><span>《</span><span class="italic">静</span><span class="italic">jìng</span><span class="italic">夜</span><span class="italic">yè</span><span class="italic">思</span><span class="italic">sī</span><span>》</span></p>
         <p class="italic">唐·李白</p>
-        <p><span class="bold">床</span><span class="yellow">前</span><span class="italic">明</span><span class="underline">月</span><span class="bold">光</span>，</p>
+        <p><span class="bold">床</span><span class="yellow">前</span><span class="italic">明</span><span class="underline"><span class="blink">月</span></span><span class="bold">光</span>，</p>
         <p><span class="italic">疑</span><span class="underline">是</span><span class="bold">地</span><span class="yellow">上</span><span class="bold">霜</span>。</p>
-        <p><span class="bold">举</span><span class="yellow">头</span><span class="italic">望</span><span class="underline">明</span><span class="bold">月</span>，</p>
+        <p><span class="bold">举</span><span class="yellow">头</span><span class="italic">望</span><span class="underline"><span class="blink">明</span></span><span class="bold">月</span>，</p>
         <p><span class="italic">低</span><span class="underline">头</span><span class="bold">思</span><span class="yellow">故</span><span class="bold">乡</span>。</p>
     </div>
 </body>
