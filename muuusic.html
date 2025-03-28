@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CD 机封面模拟</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #87CEFA;
+        }
+
+        .cd-player {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+
+        .cd {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            background-image: url('https://img9.doubanio.com/view/photo/l/public/p2881736524.webp');
+            background-size: cover;
+            border-radius: 50%;
+            animation: rotate 5s linear infinite;
+            animation-play-state: running;
+        }
+
+        @keyframes rotate {
+            from {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+            to {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+
+        .fish-switch {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 40px;
+            cursor: pointer;
+        }
+
+        .fish {
+            width: 80px;
+            height: 40px;
+            position: relative;
+            animation: swim 2s infinite alternate;
+            animation-play-state: running;
+        }
+
+        @keyframes swim {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(20px);
+            }
+        }
+
+        .fish-body {
+            width: 60px;
+            height: 30px;
+            background-color: #FFA500;
+            border-radius: 50%;
+            position: absolute;
+            top: 5px;
+            left: 0;
+        }
+
+        .fish-tail {
+            width: 0;
+            height: 0;
+            border-top: 15px solid transparent;
+            border-bottom: 15px solid transparent;
+            border-left: 20px solid #FFA500;
+            position: absolute;
+            top: 5px;
+            left: 60px;
+            animation: tail-wiggle 0.5s infinite alternate;
+            animation-play-state: running;
+        }
+
+        @keyframes tail-wiggle {
+            0% {
+                transform: rotate(-10deg);
+            }
+            100% {
+                transform: rotate(10deg);
+            }
+        }
+
+        .bubble {
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            position: absolute;
+            opacity: 0;
+            animation: bubble-rise 3s infinite;
+            display: none;
+        }
+
+        @keyframes bubble-rise {
+            0% {
+                bottom: 0;
+                opacity: 0;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                bottom: 40px;
+                opacity: 0;
+            }
+        }
+
+        .fish-switch.paused .fish {
+            animation-play-state: paused;
+        }
+
+        .fish-switch.paused .fish-tail {
+            animation-play-state: paused;
+        }
+
+        .fish-switch.paused .bubble {
+            display: block;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="cd-player">
+        <div class="cd"></div>
+        <div class="fish-switch" onclick="togglePlay()">
+            <div class="fish">
+                <div class="fish-body"></div>
+                <div class="fish-tail"></div>
+                <div class="bubble" style="left: 10px;"></div>
+                <div class="bubble" style="left: 30px;"></div>
+                <div class="bubble" style="left: 50px;"></div>
+            </div>
+        </div>
+        <audio id="music" src="https://lv-sycdn.kuwo.cn/22974ea5f62d77e38957a42b64979b11/67e6960b/resource/30106/trackmedia/M500001bqUXj2eij6O.mp3?bitrate$128&format$mp3&user$"></audio>
+    </div>
+    <script>
+        const cd = document.querySelector('.cd');
+        const music = document.getElementById('music');
+        const fishSwitch = document.querySelector('.fish-switch');
+        let isPlaying = true;
+
+        function togglePlay() {
+            if (isPlaying) {
+                cd.style.animationPlayState = 'paused';
+                music.pause();
+                fishSwitch.classList.add('paused');
+            } else {
+                cd.style.animationPlayState = 'running';
+                music.play();
+                fishSwitch.classList.remove('paused');
+            }
+            isPlaying = !isPlaying;
+        }
+    </script>
+</body>
+
+</html>    
