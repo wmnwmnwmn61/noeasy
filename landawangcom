@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单计算器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+
+       .calculator {
+            background-color: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-gap: 12px;
+            grid-template-areas:
+                "display display display display"
+                "clear divide multiply subtract"
+                "seven eight nine add"
+                "four five six add"
+                "one two three equals"
+                "zero zero decimal equals";
+            background-image: url('https://file.moyublog.com/free_wallpapers_files/qhcacaru0ij.jpg');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+       .display {
+            grid-area: display;
+            width: 100%;
+            height: 60px;
+            font-size: 32px;
+            text-align: right;
+            border: none;
+            border-radius: 8px;
+            background-color: #f0f0f0;
+            padding: 0 16px;
+            margin-bottom: 12px;
+        }
+
+       .button {
+            padding: 16px;
+            font-size: 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background - color 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+       .button:hover {
+            filter: brightness(0.9);
+        }
+
+       .button::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            opacity: 0.3;
+            z-index: 1;
+        }
+
+       .seven::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+1');
+        }
+
+       .eight::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+2');
+        }
+
+       .nine::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+3');
+        }
+
+       .four::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+4');
+        }
+
+       .five::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+5');
+        }
+
+       .six::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+6');
+        }
+
+       .one::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+7');
+        }
+
+       .two::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+8');
+        }
+
+       .three::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+9');
+        }
+
+       .zero::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+10');
+        }
+
+       .decimal::before {
+            background-image: url('https://dummyimage.com/200x200/000/fff&text=Tom+Jerry+11');
+        }
+
+       .fireworks {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer - events: none;
+            display: none;
+        }
+
+       .firework {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background - color: #ff0;
+            border - radius: 50%;
+            animation: firework 1s ease - out;
+        }
+
+        @keyframes firework {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(10);
+                opacity: 0;
+            }
+        }
+
+       .clear {
+            grid - area: clear;
+        }
+
+       .divide {
+            grid - area: divide;
+        }
+
+       .multiply {
+            grid - area: multiply;
+        }
+
+       .seven {
+            grid - area: seven;
+        }
+
+       .eight {
+            grid - area: eight;
+        }
+
+       .nine {
+            grid - area: nine;
+        }
+
+       .subtract {
+            grid - area: subtract;
+        }
+
+       .four {
+            grid - area: four;
+        }
+
+       .five {
+            grid - area: five;
+        }
+
+       .six {
+            grid - area: six;
+        }
+
+       .add {
+            grid - area: add;
+        }
+
+       .one {
+            grid - area: one;
+        }
+
+       .two {
+            grid - area: two;
+        }
+
+       .three {
+            grid - area: three;
+        }
+
+       .equals {
+            grid - area: equals;
+        }
+
+       .zero {
+            grid - area: zero;
+        }
+
+       .decimal {
+            grid - area: decimal;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="calculator">
+        <input type="text" class="display" id="display" readonly>
+        <button class="button clear" onclick="playClickSound(); clearDisplay()">C</button>
+        <button class="button divide" onclick="playClickSound(); appendToDisplay('/')">/</button>
+        <button class="button multiply" onclick="playClickSound(); appendToDisplay('*')">*</button>
+        <button class="button subtract" onclick="playClickSound(); appendToDisplay('-')">-</button>
+        <button class="button seven" onclick="playClickSound(); appendToDisplay('7')">7</button>
+        <button class="button eight" onclick="playClickSound(); appendToDisplay('8')">8</button>
+        <button class="button nine" onclick="playClickSound(); appendToDisplay('9')">9</button>
+        <button class="button add" onclick="playClickSound(); appendToDisplay('+')">+</button>
+        <button class="button four" onclick="playClickSound(); appendToDisplay('4')">4</button>
+        <button class="button five" onclick="playClickSound(); appendToDisplay('5')">5</button>
+        <button class="button six" onclick="playClickSound(); appendToDisplay('6')">6</button>
+        <button class="button add" onclick="playClickSound(); appendToDisplay('+')">+</button>
+        <button class="button one" onclick="playClickSound(); appendToDisplay('1')">1</button>
+        <button class="button two" onclick="playClickSound(); appendToDisplay('2')">2</button>
+        <button class="button three" onclick="playClickSound(); appendToDisplay('3')">3</button>
+        <button class="button equals" onclick="playClickSound(); calculate()">=</button>
+        <button class="button zero" onclick="playClickSound(); appendToDisplay('0')">0</button>
+        <button class="button decimal" onclick="playClickSound(); appendToDisplay('.')">.</button>
+    </div>
+    <div class="fireworks" id="fireworks"></div>
+    <audio id="clickSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+    <script>
+        const buttonElements = document.querySelectorAll('.button');
+        const pastelColors = ['#F8EDE3', '#DFD3C3', '#D0B8A8', '#7D6E83', '#9F8772', '#B09B71', '#E5E3C9', '#F0EBE3'];
+        let colorIndex = 0;
+        let newCalculation = false;
+
+        buttonElements.forEach((button) => {
+            button.style.backgroundColor = pastelColors[colorIndex % pastelColors.length];
+            colorIndex++;
+        });
+
+        function appendToDisplay(value) {
+            const display = document.getElementById('display');
+            if (newCalculation) {
+                display.value = value;
+                newCalculation = false;
+            } else {
+                display.value += value;
+            }
+        }
+
+        function clearDisplay() {
+            document.getElementById('display').value = '';
+            newCalculation = false;
+        }
+
+        function calculate() {
+            try {
+                const display = document.getElementById('display');
+                display.value = eval(display.value);
+                showFireworks();
+                newCalculation = true;
+            } catch (error) {
+                document.getElementById('display').value = '错误';
+                newCalculation = false;
+            }
+        }
+
+        function showFireworks() {
+            const fireworks = document.getElementById('fireworks');
+            fireworks.style.display = 'block';
+
+            for (let i = 0; i < 20; i++) {
+                const firework = document.createElement('div');
+                firework.classList.add('firework');
+                firework.style.left = Math.random() * window.innerWidth + 'px';
+                firework.style.top = Math.random() * window.innerHeight + 'px';
+                firework.style.backgroundColor = getRandomColor();
+                fireworks.appendChild(firework);
+
+                setTimeout(() => {
+                    firework.remove();
+                }, 1000);
+            }
+
+            setTimeout(() => {
+                fireworks.style.display = 'none';
+            }, 1000);
+        }
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        function playClickSound() {
+            const audio = document.getElementById('clickSound');
+            audio.currentTime = 0;
+            audio.play();
+        }
+    </script>
+</body>
+
+</html>    
