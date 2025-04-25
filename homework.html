@@ -161,6 +161,39 @@
                 }
             }
         </style>
+        <style>
+            /* 删除固定高度设置 */
+            .image-container {
+                width: 48%;
+                height: auto; /* 高度自适应 */
+                min-height: 200px;
+                max-height: 400px;
+            }
+
+            .image-container img {
+                width: 100%;
+                height: auto;
+                object-fit: scale-down; /* 自适应缩放 */
+                max-height: 380px; /* 限制最大高度 */
+            }
+
+            /* 移除第一张图的特殊尺寸 */
+            .image-card:first-child .image-container {
+                width: 48%;
+                height: auto;
+                margin-right: 30px;
+            }
+
+            @media (max-width: 768px) {
+                .image-container {
+                    width: 100% !important;
+                    max-height: 300px;
+                }
+                .image-card:first-child .image-container {
+                    margin-right: 0;
+                }
+            }
+        </style>
     </style>
 </head>
 <body>
