@@ -134,6 +134,29 @@
                 }
             }
         </style>
+        <style>
+            /* 修改第一张图特殊尺寸 */
+            .image-card:first-child .image-container {
+                width: 45%;  /* 宽度与其他图片统一 */
+                height: 280px; /* 高度调整为一致 */
+                margin-right: 30px;
+            }
+
+            /* 保持其他图片尺寸 */
+            .image-container {
+                width: 45%;
+                flex-shrink: 0;
+                height: 280px;  /* 确保所有图片容器高度相同 */
+                transition: all 0.3s ease;
+            }
+
+            @media (max-width: 768px) {
+                .image-card:first-child .image-container {
+                    width: 100%;
+                    height: 220px;  /* 移动端保持统一 */
+                }
+            }
+        </style>
     </style>
 </head>
 <body>
