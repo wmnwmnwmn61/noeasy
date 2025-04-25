@@ -1,9 +1,74 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <!-- 保持原有head部分不变 -->
+    <meta charset="UTF-8">
+    <title>弹幕可视化分析平台</title>
     <style>
-        /* 原有样式保持不变 */
+        body {
+            font-family: 'Segoe UI', system-ui;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            /* 新增渐变背景 */
+        }
+
+        h1 {
+            color: #2a4d69;
+            font-size: 2.4rem;
+            position: relative;
+            margin: 50px 0;
+            /* 增大上下间距 */
+        }
+
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 3px;
+            background: #4b86b4;
+            /* 标题装饰线 */
+        }
+
+        .gallery {
+            gap: 25px;
+            padding: 25px;
+        }
+
+        .image-card {
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            /* 优化动效曲线 */
+        }
+
+        .image-container {
+            height: 180px; /* 缩小图片高度 */
+            border-radius: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .image-container:hover {
+            transform: scale(1.05);
+            /* 增加悬浮放大效果 */
+        }
+
+        .caption {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(5px);
+            /* 毛玻璃效果 */
+        }
+
+        .caption h3 {
+            font-size: 1.1rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .caption p {
+            font-size: 0.9em;
+            color: #4a5568;
+            line-height: 1.8;
+        }
     </style>
 </head>
 <body>
