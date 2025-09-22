@@ -1,357 +1,405 @@
-import json
-import os
-import time
-import logging
-import requests
-from PIL import Image
-from io import BytesIO
-from flask import Flask, request, jsonify, send_from_directory, redirect
+<!DOCTYPE html>
+<html lang="zh-CN">
 
-# 导入自定义日志配置模块
-try:
-    from logging_config import setup_logging
-    # 初始化日志系统
-    logger = setup_logging()
-except ImportError:
-    # 如果没有logging_config模块，使用默认日志配置
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-
-# 创建Flask应用
-app = Flask(__name__, static_folder='.')
-
-# 从环境变量读取配置或使用默认值
-base_url = os.environ.get('MODEL_SCOPE_BASE_URL', 'https://api-inference.modelscope.cn/')
-api_key = os.environ.get('MODEL_SCOPE_API_KEY', 'ms-f60bd889-628f-4e92-97f8-bd844730dd2c')  # 默认值，生产环境应从环境变量设置
-common_headers = {
-    "Authorization": f"Bearer {api_key}",
-    "Content-Type": "application/json",
-}
-
-# 确保图片目录存在
-IMAGE_DIR = os.environ.get('IMAGE_DIR', 'generated_images')
-if not os.path.exists(IMAGE_DIR):
-    os.makedirs(IMAGE_DIR)
-
-# 生成背景图片的函数
-def generate_background_image():
-    try:
-        # 使用API生成背景图片
-        response = requests.post(
-            f"{base_url}v1/images/generations",
-            headers={**common_headers, "X-ModelScope-Async-Mode": "true"},
-            data=json.dumps({
-                "model": "Qwen/Qwen-Image",  # ModelScope Model-Id
-                "prompt": "淡绿色背景，抽象的新闻或媒体相关的背景，简洁美观"
-            }, ensure_ascii=False).encode('utf-8')
-        )
-        
-        response.raise_for_status()
-        task_id = response.json()["task_id"]
-        
-        # 轮询获取结果
-        while True:
-            result = requests.get(
-                f"{base_url}v1/tasks/{task_id}",
-                headers={**common_headers, "X-ModelScope-Task-Type": "image_generation"},
-            )
-            result.raise_for_status()
-            data = result.json()
-            
-            if data["task_status"] == "SUCCEED":
-                image = Image.open(BytesIO(requests.get(data["output_images"][0]).content))
-                # 调整图片大小以适应网页背景
-                image = image.resize((1920, 1080), Image.LANCZOS)
-                # 保存为背景图片
-                bg_image_path = os.path.join(IMAGE_DIR, 'background.jpg')
-                image.save(bg_image_path)
-                return bg_image_path
-            elif data["task_status"] == "FAILED":
-                print("背景图片生成失败。")
-                return None
-            
-            time.sleep(5)
-    except Exception as e:
-        print(f"生成背景图片时出错: {str(e)}")
-        return None
-
-# 生成相关图片的函数
-def generate_related_image(title, content):
-    try:
-        logger.info('开始生成相关图片')
-        # 组合提示词
-        prompt = f"为新闻文章生成一张相关图片: {title}. {content[:100]}..." 
-        logger.debug(f'图片生成提示词: {prompt[:50]}...')
-        
-        response = requests.post(
-            f"{base_url}v1/images/generations",
-            headers={**common_headers, "X-ModelScope-Async-Mode": "true"},
-            data=json.dumps({
-                "model": "Qwen/Qwen-Image",
-                "prompt": prompt
-            }, ensure_ascii=False).encode('utf-8')
-        )
-        
-        response.raise_for_status()
-        task_id = response.json()["task_id"]
-        logger.info(f'图片生成任务已提交，task_id: {task_id}')
-        
-        # 轮询获取结果
-        while True:
-            result = requests.get(
-                f"{base_url}v1/tasks/{task_id}",
-                headers={**common_headers, "X-ModelScope-Task-Type": "image_generation"},
-            )
-            result.raise_for_status()
-            data = result.json()
-            
-            if data["task_status"] == "SUCCEED":
-                image = Image.open(BytesIO(requests.get(data["output_images"][0]).content))
-                # 保存图片
-                timestamp = int(time.time())
-                image_filename = f"news_image_{timestamp}.jpg"
-                image_path = os.path.join(IMAGE_DIR, image_filename)
-                image.save(image_path)
-                return image_filename
-            elif data["task_status"] == "FAILED":
-                print("图片生成失败。")
-                return None
-            
-            time.sleep(5)
-    except Exception as e:
-        logger.error(f"生成相关图片时出错: {str(e)}", exc_info=True)
-        return None
-
-# 使用OpenAI API转换文本为营销号风格
-def convert_to_marketing_style(title, content, style):
-    try:
-        logger.info('开始调用OpenAI API进行文本转换')
-        from openai import OpenAI
-        
-        client = OpenAI(
-            base_url='https://api-inference.modelscope.cn/v1',
-            api_key=api_key,
-        )
-        logger.debug('OpenAI客户端初始化完成')
-        
-        # 根据风格生成系统提示
-        style_prompts = {
-            'sensational': '你是一个震惊体营销号作者，请将提供的新闻内容转换为震惊体风格，使用夸张的标题和吸引眼球的表达方式。',
-            'emotional': '你是一个情感共鸣营销号作者，请将提供的新闻内容转换为能够引起读者情感共鸣的风格，让读者产生共鸣和感动。',
-            'mysterious': '你是一个悬疑揭秘营销号作者，请将提供的新闻内容转换为充满神秘感和揭秘性质的风格，激发读者的好奇心。',
-            'inspirational': '你是一个励志正能量营销号作者，请将提供的新闻内容转换为积极向上、充满正能量的风格，鼓舞和激励读者。',
-            'warning': '你是一个警示提醒营销号作者，请将提供的新闻内容转换为带有警示和提醒性质的风格，让读者提高警惕。'
-        }
-        
-        system_prompt = style_prompts.get(style, '你是一个营销号作者，请将提供的新闻内容转换为吸引人的营销号风格。')
-        
-        # 调用API生成营销号内容
-        response = client.chat.completions.create(
-            model='iic/Tongyi-DeepResearch-30B-A3B',
-            messages=[
-                {
-                    'role': 'system',
-                    'content': system_prompt
-                },
-                {
-                    'role': 'user',
-                    'content': f'新闻标题: {title}\n新闻内容: {content}'
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新闻营销号</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4ade80',
+                        secondary: '#22c55e',
+                        accent: '#16a34a',
+                        light: '#dcfce7',
+                        dark: '#059669',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
                 }
-            ]
-        )
-        
-        marketing_content = response.choices[0].message.content
-        
-        # 提取标题和正文
-        # 这里简单处理，实际应用中可能需要更复杂的解析
-        lines = marketing_content.strip().split('\n')
-        marketing_title = lines[0] if lines else title
-        marketing_body = '\n'.join(lines[1:]) if len(lines) > 1 else marketing_content
-        
-        return {
-            'title': marketing_title,
-            'content': marketing_body
+            }
         }
-    except Exception as e:
-        logger.error(f"转换为营销号风格时出错: {str(e)}", exc_info=True)
-        # 如果API调用失败，使用简单的模板生成
-        return generate_fallback_marketing_content(title, content, style)
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .bg-blur {
+                backdrop-filter: blur(8px);
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .transition-custom {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+        }
+    </style>
+</head>
 
-import random
+<body class="bg-gradient-to-br from-light to-primary/30 min-h-screen font-sans">
+    <!-- 加载背景图片的占位符 -->
+    <div id="background-container" class="fixed inset-0 z-0 opacity-10"></div>
 
-# 备用的营销号内容生成函数
-def generate_fallback_marketing_content(title, content, style):
-    # 为每个风格提供多个模板选项，增加内容变化性
-    # 结尾号召性用语的多种变体
-    call_to_actions = [
-        '\n\n如果你觉得这篇文章有价值，不妨点个赞、收藏起来慢慢看，也可以转发给需要的朋友！',
-        '\n\n喜欢这篇内容的话，别忘了一键三连支持我们哦！关注账号，更多精彩内容等你发现~',
-        '\n\n觉得有用的话，记得点赞分享给身边的朋友，你的支持是我们创作的最大动力！',
-        '\n\n欢迎在评论区留言分享你的看法，同时记得点赞收藏，以免错过更多精彩内容！',
-        '\n\n如果你也认同这篇文章的观点，就请点赞支持一下吧，让更多人看到这个重要信息！'
-    ]
-    
-    style_templates = {
-        'sensational': [
-            {
-                'title': f'震惊！{title}背后竟藏如此隐情，全网都被震撼了！',
-                'content': f'你绝对想象不到，{content}。这到底是人为操作还是自然巧合？简直让人不敢相信自己的眼睛！{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'突发！{title}最新进展曝光，看完让人倒吸一口凉气...',
-                'content': f'就在刚刚，{content}的惊人真相被揭开。这背后的故事远比我们想象的更加复杂和震撼！{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'不敢相信！{title}居然是这样的结局，所有人都沉默了...',
-                'content': f'简直难以置信，{content}。当真相水落石出的那一刻，在场的每个人都陷入了深深的思考。这究竟是怎么回事？{random.choice(call_to_actions)}'
+    <div class="relative z-10 max-w-6xl mx-auto px-4 py-8">
+        <!-- 头部 -->
+        <header class="mb-10 text-center">
+            <div class="inline-block relative">
+                <h1
+                    class="text-[clamp(2rem,5vw,3.5rem)] font-bold text-dark mb-2 text-shadow transform transition-custom hover:scale-105">
+                    <i class="fa fa-newspaper-o mr-3 text-accent"></i>新闻营销号
+                </h1>
+                <div class="h-1 w-full bg-gradient-to-r from-accent to-transparent rounded-full mt-2"></div>
+            </div>
+            <p class="text-gray-700 mt-4 text-lg max-w-2xl mx-auto">
+                输入新闻内容，一键转换成吸引人的营销号风格，并自动生成相关图片
+            </p>
+        </header>
+
+        <!-- 主要内容区 -->
+        <main class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 输入区域 -->
+            <section class="bg-white/80 bg-blur rounded-2xl shadow-lg p-6 transition-custom hover:shadow-xl">
+                <h2 class="text-2xl font-semibold text-dark mb-4 flex items-center">
+                    <i class="fa fa-pencil-square-o mr-2 text-secondary"></i>输入新闻内容
+                </h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <label for="news-title" class="block text-gray-700 mb-1 font-medium">新闻标题</label>
+                        <input type="text" id="news-title"
+                            class="w-full px-4 py-3 rounded-lg border border-primary/30 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom"
+                            placeholder="输入新闻标题...">
+                    </div>
+
+                    <div>
+                        <label for="news-content" class="block text-gray-700 mb-1 font-medium">新闻内容</label>
+                        <textarea id="news-content" rows="10"
+                            class="w-full px-4 py-3 rounded-lg border border-primary/30 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom"
+                            placeholder="输入新闻详细内容..."></textarea>
+                    </div>
+
+                    <div>
+                        <label for="marketing-style" class="block text-gray-700 mb-1 font-medium">营销号风格</label>
+                        <select id="marketing-style"
+                            class="w-full px-4 py-3 rounded-lg border border-primary/30 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom bg-white">
+                            <option value="sensational">震惊体</option>
+                            <option value="emotional">情感共鸣</option>
+                            <option value="mysterious">悬疑揭秘</option>
+                            <option value="inspirational">励志正能量</option>
+                            <option value="warning">警示提醒</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-2">
+                        <button id="convert-btn"
+                            class="w-full bg-gradient-to-r from-primary to-accent text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-custom transform hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/50 flex items-center justify-center">
+                            <i class="fa fa-magic mr-2"></i>转换并生成图片
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 输出区域 -->
+            <section class="bg-white/80 bg-blur rounded-2xl shadow-lg p-6 transition-custom hover:shadow-xl">
+                <h2 class="text-2xl font-semibold text-dark mb-4 flex items-center">
+                    <i class="fa fa-bullhorn mr-2 text-secondary"></i>营销号文章
+                </h2>
+
+                <div id="output-container" class="space-y-6">
+                    <div class="hidden" id="loading-indicator">
+                        <div class="flex justify-center items-center py-10">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                            <p class="ml-4 text-gray-700">正在生成营销号文章和图片...</p>
+                        </div>
+                    </div>
+
+                    <div id="output-content" class="space-y-4">
+                        <h3 id="marketing-title" class="text-xl font-bold text-dark text-shadow"></h3>
+                        <div id="marketing-article" class="prose max-w-none text-gray-800"></div>
+
+                        <div id="image-container" class="mt-6">
+                            <img id="generated-image" src="" alt="生成的图片"
+                                class="w-full h-auto rounded-lg shadow-md hidden transition-custom hover:shadow-lg transform hover:scale-[1.02]">
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 历史记录区域 -->
+        <section class="mt-12 bg-white/80 bg-blur rounded-2xl shadow-lg p-6 transition-custom hover:shadow-xl">
+            <h2 class="text-2xl font-semibold text-dark mb-4 flex items-center">
+                <i class="fa fa-history mr-2 text-secondary"></i>生成历史
+            </h2>
+
+            <div id="history-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- 历史记录将在这里动态添加 -->
+                <div class="text-gray-500 text-center py-6" id="empty-history">
+                    <i class="fa fa-folder-open-o text-4xl mb-2"></i>
+                    <p>暂无生成历史</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="relative z-10 mt-12 py-6 border-t border-primary/20">
+        <div class="max-w-6xl mx-auto px-4 text-center text-gray-600">
+            <p>&copy; 2023 新闻营销号 | 一键生成吸引人的营销内容</p>
+            <div class="mt-2 flex justify-center space-x-4">
+                <a href="#" class="text-dark hover:text-accent transition-custom"><i class="fa fa-github"></i></a>
+                <a href="#" class="text-dark hover:text-accent transition-custom"><i class="fa fa-twitter"></i></a>
+                <a href="#" class="text-dark hover:text-accent transition-custom"><i class="fa fa-linkedin"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 应用配置 - 可通过环境变量或URL参数覆盖
+        const appConfig = {
+            // API基础路径，默认为空字符串（相对路径）
+            apiBaseUrl: '',
+            // 重试配置
+            retry: {
+                maxAttempts: 3,
+                delay: 1000
             }
-        ],
-        'emotional': [
-            {
-                'title': f'看完{title}，无数人泪湿眼眶：这就是真实的生活啊',
-                'content': f'不知道大家是否也有过类似{content}的经历？人生总是充满了各种意想不到的故事，有些温暖，有些刺痛，但正是这些经历让我们成为了今天的自己。{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'{title}：一个让无数人感同身受的真实故事',
-                'content': f'最近，{content}的故事在网络上引起了广泛共鸣。它就像一面镜子，让我们看到了自己生活中的酸甜苦辣。这个故事，也许也能触动你内心最柔软的地方...{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'深夜看完{title}，我忍不住哭了：原来这就是人生',
-                'content': f'深夜读到{content}的故事，我久久无法入睡。它让我想起了自己生命中那些重要的人和事，那些欢笑与泪水交织的日子。有时候，一个简单的故事就能让我们重新审视生活的意义。{random.choice(call_to_actions)}'
+        };
+
+        // 从URL参数加载配置
+        function loadConfigFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('apiBaseUrl')) {
+                appConfig.apiBaseUrl = urlParams.get('apiBaseUrl').replace(/\/$/, '');
             }
-        ],
-        'mysterious': [
-            {
-                'title': f'深度揭秘：{title}背后隐藏的惊人内幕，99%的人都不知道！',
-                'content': f'今天，我要为大家揭开一个被刻意隐瞒多年的秘密：{content}。这个发现简直颠覆了我们的认知，让人不得不重新审视整个事件的来龙去脉。想知道更多细节吗？继续往下看...{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'惊人发现！{title}背后的神秘力量终于浮出水面',
-                'content': f'经过长期调查，我们发现了{content}背后令人震惊的真相。这个秘密被隐藏了这么多年，直到最近才被一位不愿透露姓名的内部人士揭开。现在，让我们一起探索这个神秘事件的真相...{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'悬疑重重！{title}背后究竟隐藏着什么不为人知的秘密？',
-                'content': f'{content}的事件一直笼罩着一层神秘的面纱。看似简单的表面下，其实隐藏着复杂的线索和不为人知的动机。今天，我们将尝试一步步揭开这个谜团，看看事情的真相究竟是什么...{random.choice(call_to_actions)}'
-            }
-        ],
-        'inspirational': [
-            {
-                'title': f'{title}：一个激励千万人的励志故事，值得所有人学习！',
-                'content': f'{content}的故事告诉我们，无论面对多大的困难和挑战，只要我们保持信念、坚持不懈，就一定能够战胜一切。这个真实的故事，让无数人重新点燃了对生活的希望和热情。{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'看完{title}，我重新找回了生活的勇气',
-                'content': f'在人生最低谷的时候，我看到了{content}的故事。它让我明白，没有什么困难是过不去的，只要我们不放弃自己。现在，我想把这个充满正能量的故事分享给更多人，希望它也能给你带来力量。{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'{title}：普通人创造的奇迹，看完让人热血沸腾！',
-                'content': f'你相信普通人也能创造奇迹吗？{content}的故事给出了肯定的答案。这个平凡却又不平凡的故事，向我们展示了人类潜能的无限可能。它告诉我们，只要有梦想，并为之努力奋斗，每个人都可以成为自己生命中的英雄。{random.choice(call_to_actions)}'
-            }
-        ],
-        'warning': [
-            {
-                'title': f'紧急提醒：{title}，每个人都必须高度警惕！',
-                'content': f'这里有一个非常重要的消息要告诉大家：{content}。这件事情关系到我们每个人的安全和利益，请务必引起重视。也请把这个消息转发给你关心的人，让更多人了解并做好防范措施。{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'重要通知！{title}，所有人都应该知道的关键信息',
-                'content': f'最近，{content}的情况引起了广泛关注。为了大家的安全和权益，我们觉得有必要把这些重要信息分享给更多人。请大家务必认真阅读，提高警惕，同时提醒身边的亲朋好友注意防范。{random.choice(call_to_actions)}'
-            },
-            {
-                'title': f'警惕！{title}可能影响到你我，这些事情一定要知道！',
-                'content': f'我必须严肃地提醒大家：{content}。这种情况如果不引起足够重视，很可能会给我们的生活带来严重影响。为了自己和家人的安全，请务必了解这些关键信息，并做好充分准备。{random.choice(call_to_actions)}'
-            }
-        ]
-    }
-    
-    # 获取指定风格的模板列表，如果不存在则使用默认值
-    templates = style_templates.get(style)
-    if templates:
-        # 随机选择一个模板
-        return random.choice(templates)
-    else:
-        # 如果没有找到对应的风格，返回原始标题和内容
-        return {
-            'title': title,
-            'content': content
         }
 
-# Flask路由
-@app.route('/')
-def index():
-    logger.info('访问首页')
-    return send_from_directory('.', 'index.html')
+        // 初始化配置
+        loadConfigFromUrl();
 
-@app.route('/convert', methods=['POST'])
-def convert_news():
-    try:
-        logger.info('接收到新闻转换请求')
-        data = request.json
-        title = data.get('title', '')
-        content = data.get('content', '')
-        style = data.get('style', 'sensational')
-        
-        logger.info(f'接收到的内容 - 标题: {title[:20]}..., 风格: {style}')
-        
-        if not title or not content:
-            logger.warning('标题或内容为空')
-            return jsonify({'error': '请输入新闻标题和内容'}), 400
-        
-        # 转换为营销号风格
-        logger.info('开始转换为营销号风格')
-        marketing_result = convert_to_marketing_style(title, content, style)
-        logger.info(f'转换完成，生成标题: {marketing_result["title"][:20]}...')
-        
-        # 生成相关图片
-        logger.info('开始生成相关图片')
-        image_filename = generate_related_image(title, content)
-        logger.info(f"图片生成结果: {'成功' if image_filename else '失败'}")
-        
-        response = {
-            'title': marketing_result['title'],
-            'content': marketing_result['content']
+        // 生成完整的API URL
+        function getApiUrl(endpoint) {
+            return appConfig.apiBaseUrl + endpoint;
         }
-        
-        if image_filename:
-            response['image_url'] = f'/generated_images/{image_filename}'
-        
-        logger.info('转换请求处理完成')
-        return jsonify(response)
-    except Exception as e:
-        logger.error(f'转换过程中出错: {str(e)}', exc_info=True)
-        return jsonify({'error': f'转换失败: {str(e)}'}), 500
 
-@app.route('/generated_images/<path:filename>')
-def serve_image(filename):
-    return send_from_directory(IMAGE_DIR, filename)
+        // 带重试逻辑的fetch函数
+        async function fetchWithRetry(url, options = {}, attempt = 0) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                return response;
+            } catch (error) {
+                // 如果是网络错误且还有重试次数，进行重试
+                if (attempt < appConfig.retry.maxAttempts && 
+                    (error.name === 'TypeError' || error.message.includes('Failed to fetch'))) {
+                    console.warn(`请求失败，${appConfig.retry.delay}ms后重试 (${attempt + 1}/${appConfig.retry.maxAttempts})...`);
+                    await new Promise(resolve => setTimeout(resolve, appConfig.retry.delay));
+                    return fetchWithRetry(url, options, attempt + 1);
+                }
+                throw error;
+            }
+        }
 
-@app.route('/background_image')
-def get_background_image():
-    # 检查是否已有背景图片，如果没有则生成
-    bg_image_path = os.path.join(IMAGE_DIR, 'background.jpg')
-    if not os.path.exists(bg_image_path):
-        generate_background_image()
-    
-    # 如果生成成功，返回图片
-    if os.path.exists(bg_image_path):
-        return send_from_directory(IMAGE_DIR, 'background.jpg')
-    else:
-        # 如果生成失败，返回在线图片
-        return redirect('https://picsum.photos/id/1003/1920/1080')
+        // 生成背景图片
+        function generateBackgroundImage() {
+            // 调用后端API获取生成的背景图片
+            const backgroundContainer = document.getElementById('background-container');
 
-if __name__ == '__main__':
-    # 从环境变量读取服务器配置
-    host = os.environ.get('FLASK_HOST', '0.0.0.0')
-    port = int(os.environ.get('FLASK_PORT', '5000'))
-    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    
-    logger.info('新闻营销号应用程序启动')
-    
-    # 生成背景图片
-    logger.info('开始生成背景图片')
-    generate_background_image()
-    logger.info('背景图片生成完成')
-    
-    # 启动Flask服务器
-    logger.info(f'启动Flask服务器，监听地址: http://{host}:{port}, 调试模式: {debug}')
-    app.run(host=host, port=port, debug=debug)
+            fetchWithRetry(getApiUrl('/background_image'))
+                .then(response => {
+                    // 创建图片URL
+                    const imageUrl = response.url;
+                    backgroundContainer.style.backgroundImage = `url('${imageUrl}')`;
+                    backgroundContainer.style.backgroundSize = 'cover';
+                    backgroundContainer.style.backgroundPosition = 'center';
+                })
+                .catch(error => {
+                    console.error('生成背景图片时出错:', error);
+                    // 出错时使用备用图片
+                    const bgImages = [
+                        'https://picsum.photos/id/1000/1920/1080',
+                        'https://picsum.photos/id/1002/1920/1080',
+                        'https://picsum.photos/id/1003/1920/1080',
+                        'https://picsum.photos/id/1004/1920/1080',
+                        'https://picsum.photos/id/1006/1920/1080'
+                    ];
+
+                    const randomBg = bgImages[Math.floor(Math.random() * bgImages.length)];
+                    backgroundContainer.style.backgroundImage = `url('${randomBg}')`;
+                    backgroundContainer.style.backgroundSize = 'cover';
+                    backgroundContainer.style.backgroundPosition = 'center';
+                });
+        }
+
+        // 页面加载时生成背景图片
+        window.addEventListener('load', generateBackgroundImage);
+
+        // 转换按钮点击事件
+        document.getElementById('convert-btn').addEventListener('click', async function () {
+            const newsTitle = document.getElementById('news-title').value.trim();
+            const newsContent = document.getElementById('news-content').value.trim();
+            const marketingStyle = document.getElementById('marketing-style').value;
+
+            if (!newsTitle || !newsContent) {
+                alert('请输入新闻标题和内容');
+                return;
+            }
+
+            // 显示加载指示器
+            document.getElementById('loading-indicator').classList.remove('hidden');
+            document.getElementById('output-content').classList.add('hidden');
+
+            // 调用后端API进行转换
+            fetchWithRetry(getApiUrl('/convert'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: newsTitle,
+                    content: newsContent,
+                    style: marketingStyle
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('转换失败，请稍后重试');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 更新输出区域
+                    document.getElementById('marketing-title').textContent = data.title;
+                    document.getElementById('marketing-article').textContent = data.content;
+
+                    // 更新图片
+                    const generatedImage = document.getElementById('generated-image');
+                    if (data.image_url) {
+                        generatedImage.src = data.image_url;
+                        generatedImage.classList.remove('hidden');
+                    } else {
+                        generatedImage.classList.add('hidden');
+                    }
+
+                    // 添加到历史记录
+                    addToHistory(data.title, data.content, data.image_url);
+
+                    // 隐藏加载指示器
+                    document.getElementById('loading-indicator').classList.add('hidden');
+                    document.getElementById('output-content').classList.remove('hidden');
+                })
+                .catch(error => {
+                    console.error('转换过程中出错:', error);
+
+                    // 首先确保隐藏加载指示器
+                    document.getElementById('loading-indicator').classList.add('hidden');
+                    document.getElementById('output-content').classList.remove('hidden');
+
+                    // 获取更详细的错误信息
+                    let errorMessage = '转换失败，请稍后重试';
+
+                    // 检查错误类型，处理不同的错误情况
+                    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+                        errorMessage = '网络连接失败，请检查您的网络设置';
+                        alert(errorMessage);
+                    } else if (error.response) {
+                        // 这是Fetch API的Response对象
+                        if (error.response.status === 404) {
+                            errorMessage = '请求的资源不存在';
+                        } else if (error.response.status === 500) {
+                            errorMessage = '服务器内部错误，请稍后再试';
+                        }
+
+                        // 尝试获取JSON格式的错误信息
+                        if (error.response.json) {
+                            error.response.json().then(jsonError => {
+                                if (jsonError.error) {
+                                    alert('错误: ' + jsonError.error);
+                                } else {
+                                    alert(errorMessage);
+                                }
+                            }).catch(() => {
+                                alert(errorMessage);
+                            });
+                        } else {
+                            // 如果无法获取JSON响应，直接显示错误信息
+                            alert(errorMessage);
+                        }
+                    } else if (error.message) {
+                        // 其他类型的JavaScript错误
+                        errorMessage = '转换过程中出错: ' + error.message;
+                        alert(errorMessage);
+                    } else {
+                        // 默认错误处理
+                        alert(errorMessage);
+                    }
+                });
+        });
+
+        // 添加到历史记录
+        function addToHistory(title, content, imageUrl) {
+            const historyContainer = document.getElementById('history-container');
+            const emptyHistory = document.getElementById('empty-history');
+
+            // 隐藏空历史提示
+            emptyHistory.classList.add('hidden');
+
+            // 创建历史记录卡片
+            const historyCard = document.createElement('div');
+            historyCard.className = 'bg-white rounded-xl shadow-md p-4 transition-custom hover:shadow-lg transform hover:-translate-y-1';
+
+            // 存储数据以便稍后查看
+            historyCard.dataset.title = title;
+            historyCard.dataset.content = content;
+            historyCard.dataset.imageUrl = imageUrl || '';
+
+            let imageHtml = '';
+            if (imageUrl) {
+                imageHtml = `<div class="mb-2 h-16 overflow-hidden rounded-lg"><img src="${imageUrl}" alt="相关图片" class="w-full h-full object-cover"></div>`;
+            }
+
+            historyCard.innerHTML = `
+                ${imageHtml}
+                <h4 class="font-bold text-dark text-sm mb-2 line-clamp-2">${title}</h4>
+                <p class="text-gray-600 text-xs mb-3 line-clamp-3">${content}</p>
+                <button class="text-xs text-primary hover:text-accent transition-custom">
+                    <i class="fa fa-eye mr-1"></i>查看详情
+                </button>
+            `;
+
+            // 添加点击事件
+            historyCard.querySelector('button').addEventListener('click', function () {
+                document.getElementById('marketing-title').textContent = historyCard.dataset.title;
+                document.getElementById('marketing-article').textContent = historyCard.dataset.content;
+
+                const generatedImage = document.getElementById('generated-image');
+                if (historyCard.dataset.imageUrl) {
+                    generatedImage.src = historyCard.dataset.imageUrl;
+                    generatedImage.classList.remove('hidden');
+                } else {
+                    generatedImage.classList.add('hidden');
+                }
+            });
+
+            // 添加到容器前面
+            historyContainer.insertBefore(historyCard, historyContainer.firstChild);
+
+            // 限制历史记录数量为10条
+            const historyItems = historyContainer.querySelectorAll('div[class*="bg-white"]');
+            if (historyItems.length > 10) {
+                historyContainer.removeChild(historyItems[historyItems.length - 1]);
+            }
+        }
+    </script>
+</body>
+
+</html>
