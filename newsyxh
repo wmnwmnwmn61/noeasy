@@ -1,1 +1,357 @@
+import json
+import os
+import time
+import logging
+import requests
+from PIL import Image
+from io import BytesIO
+from flask import Flask, request, jsonify, send_from_directory, redirect
 
+# 导入自定义日志配置模块
+try:
+    from logging_config import setup_logging
+    # 初始化日志系统
+    logger = setup_logging()
+except ImportError:
+    # 如果没有logging_config模块，使用默认日志配置
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+# 创建Flask应用
+app = Flask(__name__, static_folder='.')
+
+# 从环境变量读取配置或使用默认值
+base_url = os.environ.get('MODEL_SCOPE_BASE_URL', 'https://api-inference.modelscope.cn/')
+api_key = os.environ.get('MODEL_SCOPE_API_KEY', 'ms-f60bd889-628f-4e92-97f8-bd844730dd2c')  # 默认值，生产环境应从环境变量设置
+common_headers = {
+    "Authorization": f"Bearer {api_key}",
+    "Content-Type": "application/json",
+}
+
+# 确保图片目录存在
+IMAGE_DIR = os.environ.get('IMAGE_DIR', 'generated_images')
+if not os.path.exists(IMAGE_DIR):
+    os.makedirs(IMAGE_DIR)
+
+# 生成背景图片的函数
+def generate_background_image():
+    try:
+        # 使用API生成背景图片
+        response = requests.post(
+            f"{base_url}v1/images/generations",
+            headers={**common_headers, "X-ModelScope-Async-Mode": "true"},
+            data=json.dumps({
+                "model": "Qwen/Qwen-Image",  # ModelScope Model-Id
+                "prompt": "淡绿色背景，抽象的新闻或媒体相关的背景，简洁美观"
+            }, ensure_ascii=False).encode('utf-8')
+        )
+        
+        response.raise_for_status()
+        task_id = response.json()["task_id"]
+        
+        # 轮询获取结果
+        while True:
+            result = requests.get(
+                f"{base_url}v1/tasks/{task_id}",
+                headers={**common_headers, "X-ModelScope-Task-Type": "image_generation"},
+            )
+            result.raise_for_status()
+            data = result.json()
+            
+            if data["task_status"] == "SUCCEED":
+                image = Image.open(BytesIO(requests.get(data["output_images"][0]).content))
+                # 调整图片大小以适应网页背景
+                image = image.resize((1920, 1080), Image.LANCZOS)
+                # 保存为背景图片
+                bg_image_path = os.path.join(IMAGE_DIR, 'background.jpg')
+                image.save(bg_image_path)
+                return bg_image_path
+            elif data["task_status"] == "FAILED":
+                print("背景图片生成失败。")
+                return None
+            
+            time.sleep(5)
+    except Exception as e:
+        print(f"生成背景图片时出错: {str(e)}")
+        return None
+
+# 生成相关图片的函数
+def generate_related_image(title, content):
+    try:
+        logger.info('开始生成相关图片')
+        # 组合提示词
+        prompt = f"为新闻文章生成一张相关图片: {title}. {content[:100]}..." 
+        logger.debug(f'图片生成提示词: {prompt[:50]}...')
+        
+        response = requests.post(
+            f"{base_url}v1/images/generations",
+            headers={**common_headers, "X-ModelScope-Async-Mode": "true"},
+            data=json.dumps({
+                "model": "Qwen/Qwen-Image",
+                "prompt": prompt
+            }, ensure_ascii=False).encode('utf-8')
+        )
+        
+        response.raise_for_status()
+        task_id = response.json()["task_id"]
+        logger.info(f'图片生成任务已提交，task_id: {task_id}')
+        
+        # 轮询获取结果
+        while True:
+            result = requests.get(
+                f"{base_url}v1/tasks/{task_id}",
+                headers={**common_headers, "X-ModelScope-Task-Type": "image_generation"},
+            )
+            result.raise_for_status()
+            data = result.json()
+            
+            if data["task_status"] == "SUCCEED":
+                image = Image.open(BytesIO(requests.get(data["output_images"][0]).content))
+                # 保存图片
+                timestamp = int(time.time())
+                image_filename = f"news_image_{timestamp}.jpg"
+                image_path = os.path.join(IMAGE_DIR, image_filename)
+                image.save(image_path)
+                return image_filename
+            elif data["task_status"] == "FAILED":
+                print("图片生成失败。")
+                return None
+            
+            time.sleep(5)
+    except Exception as e:
+        logger.error(f"生成相关图片时出错: {str(e)}", exc_info=True)
+        return None
+
+# 使用OpenAI API转换文本为营销号风格
+def convert_to_marketing_style(title, content, style):
+    try:
+        logger.info('开始调用OpenAI API进行文本转换')
+        from openai import OpenAI
+        
+        client = OpenAI(
+            base_url='https://api-inference.modelscope.cn/v1',
+            api_key=api_key,
+        )
+        logger.debug('OpenAI客户端初始化完成')
+        
+        # 根据风格生成系统提示
+        style_prompts = {
+            'sensational': '你是一个震惊体营销号作者，请将提供的新闻内容转换为震惊体风格，使用夸张的标题和吸引眼球的表达方式。',
+            'emotional': '你是一个情感共鸣营销号作者，请将提供的新闻内容转换为能够引起读者情感共鸣的风格，让读者产生共鸣和感动。',
+            'mysterious': '你是一个悬疑揭秘营销号作者，请将提供的新闻内容转换为充满神秘感和揭秘性质的风格，激发读者的好奇心。',
+            'inspirational': '你是一个励志正能量营销号作者，请将提供的新闻内容转换为积极向上、充满正能量的风格，鼓舞和激励读者。',
+            'warning': '你是一个警示提醒营销号作者，请将提供的新闻内容转换为带有警示和提醒性质的风格，让读者提高警惕。'
+        }
+        
+        system_prompt = style_prompts.get(style, '你是一个营销号作者，请将提供的新闻内容转换为吸引人的营销号风格。')
+        
+        # 调用API生成营销号内容
+        response = client.chat.completions.create(
+            model='iic/Tongyi-DeepResearch-30B-A3B',
+            messages=[
+                {
+                    'role': 'system',
+                    'content': system_prompt
+                },
+                {
+                    'role': 'user',
+                    'content': f'新闻标题: {title}\n新闻内容: {content}'
+                }
+            ]
+        )
+        
+        marketing_content = response.choices[0].message.content
+        
+        # 提取标题和正文
+        # 这里简单处理，实际应用中可能需要更复杂的解析
+        lines = marketing_content.strip().split('\n')
+        marketing_title = lines[0] if lines else title
+        marketing_body = '\n'.join(lines[1:]) if len(lines) > 1 else marketing_content
+        
+        return {
+            'title': marketing_title,
+            'content': marketing_body
+        }
+    except Exception as e:
+        logger.error(f"转换为营销号风格时出错: {str(e)}", exc_info=True)
+        # 如果API调用失败，使用简单的模板生成
+        return generate_fallback_marketing_content(title, content, style)
+
+import random
+
+# 备用的营销号内容生成函数
+def generate_fallback_marketing_content(title, content, style):
+    # 为每个风格提供多个模板选项，增加内容变化性
+    # 结尾号召性用语的多种变体
+    call_to_actions = [
+        '\n\n如果你觉得这篇文章有价值，不妨点个赞、收藏起来慢慢看，也可以转发给需要的朋友！',
+        '\n\n喜欢这篇内容的话，别忘了一键三连支持我们哦！关注账号，更多精彩内容等你发现~',
+        '\n\n觉得有用的话，记得点赞分享给身边的朋友，你的支持是我们创作的最大动力！',
+        '\n\n欢迎在评论区留言分享你的看法，同时记得点赞收藏，以免错过更多精彩内容！',
+        '\n\n如果你也认同这篇文章的观点，就请点赞支持一下吧，让更多人看到这个重要信息！'
+    ]
+    
+    style_templates = {
+        'sensational': [
+            {
+                'title': f'震惊！{title}背后竟藏如此隐情，全网都被震撼了！',
+                'content': f'你绝对想象不到，{content}。这到底是人为操作还是自然巧合？简直让人不敢相信自己的眼睛！{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'突发！{title}最新进展曝光，看完让人倒吸一口凉气...',
+                'content': f'就在刚刚，{content}的惊人真相被揭开。这背后的故事远比我们想象的更加复杂和震撼！{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'不敢相信！{title}居然是这样的结局，所有人都沉默了...',
+                'content': f'简直难以置信，{content}。当真相水落石出的那一刻，在场的每个人都陷入了深深的思考。这究竟是怎么回事？{random.choice(call_to_actions)}'
+            }
+        ],
+        'emotional': [
+            {
+                'title': f'看完{title}，无数人泪湿眼眶：这就是真实的生活啊',
+                'content': f'不知道大家是否也有过类似{content}的经历？人生总是充满了各种意想不到的故事，有些温暖，有些刺痛，但正是这些经历让我们成为了今天的自己。{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'{title}：一个让无数人感同身受的真实故事',
+                'content': f'最近，{content}的故事在网络上引起了广泛共鸣。它就像一面镜子，让我们看到了自己生活中的酸甜苦辣。这个故事，也许也能触动你内心最柔软的地方...{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'深夜看完{title}，我忍不住哭了：原来这就是人生',
+                'content': f'深夜读到{content}的故事，我久久无法入睡。它让我想起了自己生命中那些重要的人和事，那些欢笑与泪水交织的日子。有时候，一个简单的故事就能让我们重新审视生活的意义。{random.choice(call_to_actions)}'
+            }
+        ],
+        'mysterious': [
+            {
+                'title': f'深度揭秘：{title}背后隐藏的惊人内幕，99%的人都不知道！',
+                'content': f'今天，我要为大家揭开一个被刻意隐瞒多年的秘密：{content}。这个发现简直颠覆了我们的认知，让人不得不重新审视整个事件的来龙去脉。想知道更多细节吗？继续往下看...{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'惊人发现！{title}背后的神秘力量终于浮出水面',
+                'content': f'经过长期调查，我们发现了{content}背后令人震惊的真相。这个秘密被隐藏了这么多年，直到最近才被一位不愿透露姓名的内部人士揭开。现在，让我们一起探索这个神秘事件的真相...{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'悬疑重重！{title}背后究竟隐藏着什么不为人知的秘密？',
+                'content': f'{content}的事件一直笼罩着一层神秘的面纱。看似简单的表面下，其实隐藏着复杂的线索和不为人知的动机。今天，我们将尝试一步步揭开这个谜团，看看事情的真相究竟是什么...{random.choice(call_to_actions)}'
+            }
+        ],
+        'inspirational': [
+            {
+                'title': f'{title}：一个激励千万人的励志故事，值得所有人学习！',
+                'content': f'{content}的故事告诉我们，无论面对多大的困难和挑战，只要我们保持信念、坚持不懈，就一定能够战胜一切。这个真实的故事，让无数人重新点燃了对生活的希望和热情。{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'看完{title}，我重新找回了生活的勇气',
+                'content': f'在人生最低谷的时候，我看到了{content}的故事。它让我明白，没有什么困难是过不去的，只要我们不放弃自己。现在，我想把这个充满正能量的故事分享给更多人，希望它也能给你带来力量。{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'{title}：普通人创造的奇迹，看完让人热血沸腾！',
+                'content': f'你相信普通人也能创造奇迹吗？{content}的故事给出了肯定的答案。这个平凡却又不平凡的故事，向我们展示了人类潜能的无限可能。它告诉我们，只要有梦想，并为之努力奋斗，每个人都可以成为自己生命中的英雄。{random.choice(call_to_actions)}'
+            }
+        ],
+        'warning': [
+            {
+                'title': f'紧急提醒：{title}，每个人都必须高度警惕！',
+                'content': f'这里有一个非常重要的消息要告诉大家：{content}。这件事情关系到我们每个人的安全和利益，请务必引起重视。也请把这个消息转发给你关心的人，让更多人了解并做好防范措施。{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'重要通知！{title}，所有人都应该知道的关键信息',
+                'content': f'最近，{content}的情况引起了广泛关注。为了大家的安全和权益，我们觉得有必要把这些重要信息分享给更多人。请大家务必认真阅读，提高警惕，同时提醒身边的亲朋好友注意防范。{random.choice(call_to_actions)}'
+            },
+            {
+                'title': f'警惕！{title}可能影响到你我，这些事情一定要知道！',
+                'content': f'我必须严肃地提醒大家：{content}。这种情况如果不引起足够重视，很可能会给我们的生活带来严重影响。为了自己和家人的安全，请务必了解这些关键信息，并做好充分准备。{random.choice(call_to_actions)}'
+            }
+        ]
+    }
+    
+    # 获取指定风格的模板列表，如果不存在则使用默认值
+    templates = style_templates.get(style)
+    if templates:
+        # 随机选择一个模板
+        return random.choice(templates)
+    else:
+        # 如果没有找到对应的风格，返回原始标题和内容
+        return {
+            'title': title,
+            'content': content
+        }
+
+# Flask路由
+@app.route('/')
+def index():
+    logger.info('访问首页')
+    return send_from_directory('.', 'index.html')
+
+@app.route('/convert', methods=['POST'])
+def convert_news():
+    try:
+        logger.info('接收到新闻转换请求')
+        data = request.json
+        title = data.get('title', '')
+        content = data.get('content', '')
+        style = data.get('style', 'sensational')
+        
+        logger.info(f'接收到的内容 - 标题: {title[:20]}..., 风格: {style}')
+        
+        if not title or not content:
+            logger.warning('标题或内容为空')
+            return jsonify({'error': '请输入新闻标题和内容'}), 400
+        
+        # 转换为营销号风格
+        logger.info('开始转换为营销号风格')
+        marketing_result = convert_to_marketing_style(title, content, style)
+        logger.info(f'转换完成，生成标题: {marketing_result["title"][:20]}...')
+        
+        # 生成相关图片
+        logger.info('开始生成相关图片')
+        image_filename = generate_related_image(title, content)
+        logger.info(f"图片生成结果: {'成功' if image_filename else '失败'}")
+        
+        response = {
+            'title': marketing_result['title'],
+            'content': marketing_result['content']
+        }
+        
+        if image_filename:
+            response['image_url'] = f'/generated_images/{image_filename}'
+        
+        logger.info('转换请求处理完成')
+        return jsonify(response)
+    except Exception as e:
+        logger.error(f'转换过程中出错: {str(e)}', exc_info=True)
+        return jsonify({'error': f'转换失败: {str(e)}'}), 500
+
+@app.route('/generated_images/<path:filename>')
+def serve_image(filename):
+    return send_from_directory(IMAGE_DIR, filename)
+
+@app.route('/background_image')
+def get_background_image():
+    # 检查是否已有背景图片，如果没有则生成
+    bg_image_path = os.path.join(IMAGE_DIR, 'background.jpg')
+    if not os.path.exists(bg_image_path):
+        generate_background_image()
+    
+    # 如果生成成功，返回图片
+    if os.path.exists(bg_image_path):
+        return send_from_directory(IMAGE_DIR, 'background.jpg')
+    else:
+        # 如果生成失败，返回在线图片
+        return redirect('https://picsum.photos/id/1003/1920/1080')
+
+if __name__ == '__main__':
+    # 从环境变量读取服务器配置
+    host = os.environ.get('FLASK_HOST', '0.0.0.0')
+    port = int(os.environ.get('FLASK_PORT', '5000'))
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    logger.info('新闻营销号应用程序启动')
+    
+    # 生成背景图片
+    logger.info('开始生成背景图片')
+    generate_background_image()
+    logger.info('背景图片生成完成')
+    
+    # 启动Flask服务器
+    logger.info(f'启动Flask服务器，监听地址: http://{host}:{port}, 调试模式: {debug}')
+    app.run(host=host, port=port, debug=debug)
